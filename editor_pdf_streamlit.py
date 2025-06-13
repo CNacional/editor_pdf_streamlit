@@ -11,7 +11,7 @@ import os
 st.set_page_config(page_title="Editor de PDF", layout="centered")
 st.title("🛠️ Editor de PDF Completo")
 
-menu = st.sidebar.button("Escolha uma função:", [
+menu = st.sidebar.radio("Escolha uma função:", [
     "Extrair páginas",
     "Mesclar PDFs",
     "Dividir PDF",
