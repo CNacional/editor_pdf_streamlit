@@ -2,3 +2,5 @@ streamlit
 PyPDF2
 pdfplumber
 python-docx
+reportlab
+python-docx
