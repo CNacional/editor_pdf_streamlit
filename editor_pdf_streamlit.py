@@ -66,12 +66,69 @@ def adicionar_numeracao(uploaded_file):
 
 # Remove visualmente numeração cortando o rodapé
 def remover_rodape(uploaded_file):
+    largura = st.number_input("Largura da faixa branca (px)", min_value=100, max_value=800, value=600)
+    altura = st.number_input("Altura da faixa branca (px)", min_value=10, max_value=200, value=40)
+    y_base = st.number_input("Distância do rodapé até o topo da faixa (px)", min_value=0, max_value=300, value=0)
+    cor = st.color_picker("Cor da faixa branca", value="#FFFFFF")
+    paginas = st.text_input("Páginas a aplicar (ex: 1,3,5 ou deixe vazio para todas)")
+
+    cor_rgb = tuple(int(cor.lstrip('#')[i:i+2], 16)/255 for i in (0, 2, 4))
+
     if uploaded_file:
         reader = PdfReader(uploaded_file)
         writer = PdfWriter()
-        for page in reader.pages:
-            page.mediabox.lower_left = (0, 40)
+
+        total_paginas = len(reader.pages)
+        indices_aplicar = list(range(total_paginas))
+        if paginas:
+            indices_aplicar = [int(p.strip()) - 1 for p in paginas.split(',') if p.strip().isdigit() and 0 <= int(p.strip()) - 1 < total_paginas]
+
+        st.subheader("Pré-visualização (primeira página aplicável):")
+        if indices_aplicar:
+            page_index = indices_aplicar[0]
+            original_page = reader.pages[page_index]
+            preview_writer = PdfWriter()
+
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=letter)
+            can.setFillColorRGB(*cor_rgb)
+            can.rect(x=0, y=y_base, width=largura, height=altura, fill=1)
+            can.save()
+            packet.seek(0)
+            overlay = PdfReader(packet)
+            preview_page = original_page
+            preview_page.merge_page(overlay.pages[0])
+            preview_writer.add_page(preview_page)
+
+            preview_output = io.BytesIO()
+            preview_writer.write(preview_output)
+            preview_output.seek(0)
+            b64_preview = base64.b64encode(preview_output.read()).decode('utf-8')
+            pdf_display = f"""
+            <iframe src="data:application/pdf;base64,{b64_preview}" width="700" height="1000" type="application/pdf"></iframe>
+            """
+            st.components.v1.html(pdf_display, height=1000)
+
+        if st.button("Aplicar remoção de numeração"):
+            for i, page in enumerate(reader.pages):
+                if i in indices_aplicar:
+                    packet = io.BytesIO()
+                    can = canvas.Canvas(packet, pagesize=letter)
+                    can.setFillColorRGB(*cor_rgb)
+                    can.rect(x=0, y=y_base, width=largura, height=altura, fill=1)
+                    can.save()
+                    packet.seek(0)
+                    overlay = PdfReader(packet)
+                    page.merge_page(overlay.pages[0])
+                writer.add_page(page)
+
+            download_button(writer, "sem_numeracao.pdf")
+            can.save()
+            packet.seek(0)
+            overlay = PdfReader(packet)
+            page.merge_page(overlay.pages[0])
             writer.add_page(page)
+
         download_button(writer, "sem_numeracao.pdf")
 
 # Extrair páginas específicas
