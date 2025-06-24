@@ -1,17 +1,18 @@
 import streamlit as st
-import PyPDF2
+import base64
+import io
+from PyPDF2 import PdfReader, PdfWriter
 import pdfplumber
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from pdf2docx import Converter
-from io import BytesIO
-import tempfile
 import os
 
-st.set_page_config(page_title="Editor de PDF", layout="centered")
-st.title("🛠️ Editor de PDF Completo")
+st.set_page_config(page_title="Editor de PDF", layout="wide")
+st.title("🛠️ Editor de PDF Online")
 
-menu = st.sidebar.selectbox("Escolha uma função:", [
+menu = st.sidebar.radio("Escolha uma função:", [
+    "Visualizar PDF",
     "Extrair páginas",
     "Mesclar PDFs",
     "Dividir PDF",
@@ -20,157 +21,201 @@ menu = st.sidebar.selectbox("Escolha uma função:", [
     "Inserir páginas de outro PDF",
     "Extrair texto",
     "Editar metadados",
-    "Converter para Word"
+    "Converter para Word",
+    "Adicionar numeração",
+    "Remover numeração"
 ])
 
-def salvar_pdf(writer):
-    buffer = BytesIO()
-    writer.write(buffer)
-    buffer.seek(0)
-    return buffer
+uploaded_file = st.file_uploader("📎 Envie um arquivo PDF", type="pdf")
 
-def criar_marca_dagua(texto):
-    packet = BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
-    can.setFont("Helvetica", 40)
-    can.setFillAlpha(0.3)
-    can.drawCentredString(300, 500, texto)
-    can.save()
-    packet.seek(0)
-    return PyPDF2.PdfReader(packet)
+# Utilitário para baixar arquivos PDF gerados
+def download_button(writer, filename):
+    output = io.BytesIO()
+    writer.write(output)
+    output.seek(0)
+    b64 = base64.b64encode(output.read()).decode()
+    href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}">📥 Baixar PDF processado</a>'
+    st.markdown(href, unsafe_allow_html=True)
 
-if menu == "Extrair páginas":
-    st.header("📄 Extrair páginas")
-    pdf = st.file_uploader("Selecione o PDF", type="pdf")
-    pags = st.text_input("Páginas a extrair (ex: 0,2,4)", placeholder="Use índice a partir do 0")
+# Visualizador embutido
+def visualizar_pdf(uploaded_file):
+    if uploaded_file:
+        base64_pdf = base64.b64encode(uploaded_file.read()).decode('utf-8')
+        pdf_display = f"""
+        <iframe src="data:application/pdf;base64,{base64_pdf}" width="700" height="1000" type="application/pdf"></iframe>
+        """
+        st.components.v1.html(pdf_display, height=1000)
 
-    if pdf and pags:
-        reader = PyPDF2.PdfReader(pdf)
-        writer = PyPDF2.PdfWriter()
-        indices = [int(p.strip()) for p in pags.split(",")]
+# Adiciona número de páginas com reportlab
+def adicionar_numeracao(uploaded_file):
+    if uploaded_file:
+        reader = PdfReader(uploaded_file)
+        writer = PdfWriter()
+        for i, page in enumerate(reader.pages):
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=letter)
+            numero = f"{i + 1}"
+            can.setFont("Helvetica", 10)
+            can.drawCentredString(300, 15, numero)
+            can.save()
+            packet.seek(0)
+            overlay = PdfReader(packet)
+            page.merge_page(overlay.pages[0])
+            writer.add_page(page)
+        download_button(writer, "com_numeracao.pdf")
+
+# Remove visualmente numeração cortando o rodapé
+def remover_rodape(uploaded_file):
+    if uploaded_file:
+        reader = PdfReader(uploaded_file)
+        writer = PdfWriter()
+        for page in reader.pages:
+            page.mediabox.lower_left = (0, 40)
+            writer.add_page(page)
+        download_button(writer, "sem_numeracao.pdf")
+
+# Extrair páginas específicas
+def extrair_paginas(uploaded_file):
+    paginas = st.text_input("Digite as páginas a extrair (ex: 1,3,5)")
+    if uploaded_file and paginas:
+        reader = PdfReader(uploaded_file)
+        writer = PdfWriter()
+        indices = [int(p.strip()) - 1 for p in paginas.split(',') if p.strip().isdigit()]
         for i in indices:
-            writer.add_page(reader.pages[i])
-        st.download_button("📥 Baixar PDF extraído", salvar_pdf(writer), file_name="extraido.pdf")
+            if 0 <= i < len(reader.pages):
+                writer.add_page(reader.pages[i])
+        download_button(writer, "paginas_extraidas.pdf")
 
-elif menu == "Mesclar PDFs":
-    st.header("📎 Mesclar PDFs")
-    arquivos = st.file_uploader("Selecione dois ou mais PDFs", type="pdf", accept_multiple_files=True)
-
-    if arquivos and len(arquivos) >= 2:
-        writer = PyPDF2.PdfWriter()
-        for arquivo in arquivos:
-            reader = PyPDF2.PdfReader(arquivo)
+# Mesclar dois PDFs
+def mesclar_pdfs():
+    pdf1 = st.file_uploader("Primeiro PDF", type="pdf", key="mesclar1")
+    pdf2 = st.file_uploader("Segundo PDF", type="pdf", key="mesclar2")
+    if pdf1 and pdf2:
+        writer = PdfWriter()
+        for f in [pdf1, pdf2]:
+            reader = PdfReader(f)
             for page in reader.pages:
                 writer.add_page(page)
-        st.download_button("📥 Baixar PDF mesclado", salvar_pdf(writer), file_name="mesclado.pdf")
+        download_button(writer, "pdf_mesclado.pdf")
 
-elif menu == "Dividir PDF":
-    st.header("✂️ Dividir PDF")
-    pdf = st.file_uploader("Selecione o PDF", type="pdf")
-
-    if pdf:
-        reader = PyPDF2.PdfReader(pdf)
+# Dividir PDF em páginas separadas
+def dividir_pdf(uploaded_file):
+    if uploaded_file:
+        reader = PdfReader(uploaded_file)
         for i, page in enumerate(reader.pages):
-            writer = PyPDF2.PdfWriter()
+            writer = PdfWriter()
             writer.add_page(page)
-            st.download_button(f"📥 Página {i}", salvar_pdf(writer), file_name=f"pagina_{i}.pdf")
+            st.write(f"Página {i + 1}")
+            download_button(writer, f"pagina_{i+1}.pdf")
 
-elif menu == "Rotacionar páginas":
-    st.header("🔄 Rotacionar página")
-    pdf = st.file_uploader("Selecione o PDF", type="pdf")
-    pagina = st.number_input("Número da página (0 = primeira)", min_value=0, step=1)
-    graus = st.selectbox("Rotação", [90, 180, 270])
+# Rotacionar páginas
 
-    if pdf:
-        reader = PyPDF2.PdfReader(pdf)
-        writer = PyPDF2.PdfWriter()
-        for i, page in enumerate(reader.pages):
-            if i == pagina:
-                page.rotate(graus)
+def rotacionar_paginas(uploaded_file):
+    angulo = st.selectbox("Escolha o ângulo de rotação:", [90, 180, 270])
+    if uploaded_file:
+        reader = PdfReader(uploaded_file)
+        writer = PdfWriter()
+        for page in reader.pages:
+            page.rotate(angulo)
             writer.add_page(page)
-        st.download_button("📥 Baixar PDF rotacionado", salvar_pdf(writer), file_name="rotacionado.pdf")
+        download_button(writer, f"rotacionado_{angulo}.pdf")
 
-elif menu == "Adicionar marca d'água":
-    st.header("💧 Marca d'água")
-    pdf = st.file_uploader("PDF de entrada", type="pdf")
+# Adicionar marca d'água
+
+def adicionar_marcadagua(uploaded_file):
     texto = st.text_input("Texto da marca d'água")
-
-    if pdf and texto:
-        reader = PyPDF2.PdfReader(pdf)
-        writer = PyPDF2.PdfWriter()
-        marca = criar_marca_dagua(texto)
-
-        for i, page in enumerate(reader.pages):
-            page.merge_page(marca.pages[0])
+    if uploaded_file and texto:
+        reader = PdfReader(uploaded_file)
+        writer = PdfWriter()
+        for page in reader.pages:
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=letter)
+            can.setFont("Helvetica", 20)
+            can.setFillGray(0.5, 0.5)
+            can.drawString(100, 500, texto)
+            can.save()
+            packet.seek(0)
+            overlay = PdfReader(packet)
+            page.merge_page(overlay.pages[0])
             writer.add_page(page)
-        st.download_button("📥 Baixar PDF com marca d'água", salvar_pdf(writer), file_name="marca_dagua.pdf")
+        download_button(writer, "com_marcadagua.pdf")
 
-elif menu == "Inserir páginas de outro PDF":
-    st.header("📑 Inserir páginas")
-    pdf1 = st.file_uploader("PDF base", type="pdf", key="base")
-    pdf2 = st.file_uploader("PDF a ser inserido", type="pdf", key="inserir")
-    posicao = st.number_input("Posição onde inserir (0 = início)", min_value=0, step=1)
+# Inserir páginas de outro PDF
 
-    if pdf1 and pdf2:
-        r1 = PyPDF2.PdfReader(pdf1)
-        r2 = PyPDF2.PdfReader(pdf2)
-        writer = PyPDF2.PdfWriter()
-
-        for i, page in enumerate(r1.pages):
-            if i == posicao:
-                for p in r2.pages:
-                    writer.add_page(p)
+def inserir_paginas(uploaded_file):
+    pdf_extra = st.file_uploader("PDF com páginas para inserir", type="pdf")
+    posicao = st.number_input("Posição para inserir", min_value=0, step=1)
+    if uploaded_file and pdf_extra:
+        reader1 = PdfReader(uploaded_file)
+        reader2 = PdfReader(pdf_extra)
+        writer = PdfWriter()
+        for i in range(posicao):
+            writer.add_page(reader1.pages[i])
+        for page in reader2.pages:
             writer.add_page(page)
+        for i in range(posicao, len(reader1.pages)):
+            writer.add_page(reader1.pages[i])
+        download_button(writer, "pdf_com_insercao.pdf")
 
-        st.download_button("📥 Baixar PDF final", salvar_pdf(writer), file_name="inserido.pdf")
+# Extrair texto
 
-elif menu == "Extrair texto":
-    st.header("📝 Extrair texto")
-    pdf = st.file_uploader("PDF para extrair texto", type="pdf")
+def extrair_texto(uploaded_file):
+    if uploaded_file:
+        with pdfplumber.open(uploaded_file) as pdf:
+            texto = "\n".join(page.extract_text() or '' for page in pdf.pages)
+        st.text_area("Texto extraído:", value=texto, height=400)
 
-    if pdf:
-        with pdfplumber.open(pdf) as p:
-            texto = "\n".join([page.extract_text() or '' for page in p.pages])
-        st.text_area("Texto extraído", texto, height=300)
-        st.download_button("📥 Baixar texto", texto, file_name="texto_extraido.txt")
+# Editar metadados
 
-elif menu == "Editar metadados":
-    st.header("🧾 Editar metadados")
-    pdf = st.file_uploader("PDF original", type="pdf")
-    titulo = st.text_input("Título")
-    autor = st.text_input("Autor")
-
-    if pdf and (titulo or autor):
-        reader = PyPDF2.PdfReader(pdf)
-        writer = PyPDF2.PdfWriter()
+def editar_metadados(uploaded_file):
+    titulo = st.text_input("Novo título")
+    autor = st.text_input("Novo autor")
+    assunto = st.text_input("Novo assunto")
+    if uploaded_file:
+        reader = PdfReader(uploaded_file)
+        writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
-        metadata = reader.metadata or {}
-        if titulo:
-            metadata["/Title"] = titulo
-        if autor:
-            metadata["/Author"] = autor
-        writer.add_metadata(metadata)
-        st.download_button("📥 Baixar PDF com metadados", salvar_pdf(writer), file_name="metadados.pdf")
+        writer.add_metadata({"/Title": titulo, "/Author": autor, "/Subject": assunto})
+        download_button(writer, "com_metadados.pdf")
 
+# Converter para Word
+
+def converter_para_word(uploaded_file):
+    if uploaded_file:
+        with open("temp.pdf", "wb") as f:
+            f.write(uploaded_file.read())
+        docx_path = "convertido.docx"
+        cv = Converter("temp.pdf")
+        cv.convert(docx_path, start=0, end=None)
+        cv.close()
+        with open(docx_path, "rb") as f:
+            st.download_button("📄 Baixar DOCX", f, file_name=docx_path)
+        os.remove("temp.pdf")
+        os.remove(docx_path)
+
+# Execução das funções com base no menu
+if menu == "Visualizar PDF":
+    visualizar_pdf(uploaded_file)
+elif menu == "Extrair páginas":
+    extrair_paginas(uploaded_file)
+elif menu == "Mesclar PDFs":
+    mesclar_pdfs()
+elif menu == "Dividir PDF":
+    dividir_pdf(uploaded_file)
+elif menu == "Rotacionar páginas":
+    rotacionar_paginas(uploaded_file)
+elif menu == "Adicionar marca d'água":
+    adicionar_marcadagua(uploaded_file)
+elif menu == "Inserir páginas de outro PDF":
+    inserir_paginas(uploaded_file)
+elif menu == "Extrair texto":
+    extrair_texto(uploaded_file)
+elif menu == "Editar metadados":
+    editar_metadados(uploaded_file)
 elif menu == "Converter para Word":
-    st.header("📄 Converter PDF para Word (.docx)")
-    pdf = st.file_uploader("Selecione o PDF", type="pdf")
-
-    if pdf:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-            temp_pdf.write(pdf.read())
-            temp_pdf_path = temp_pdf.name
-
-        output_docx = temp_pdf_path.replace(".pdf", ".docx")
-        try:
-            cv = Converter(temp_pdf_path)
-            cv.convert(output_docx, start=0, end=None)
-            cv.close()
-
-            with open(output_docx, "rb") as f:
-                st.download_button("📥 Baixar Word", f.read(), file_name="convertido.docx")
-        finally:
-            os.remove(temp_pdf_path)
-            if os.path.exists(output_docx):
-                os.remove(output_docx)
+    converter_para_word(uploaded_file)
+elif menu == "Adicionar numeração":
+    adicionar_numeracao(uploaded_file)
+elif menu == "Remover numeração":
+    remover_rodape(uploaded_file)
