@@ -89,7 +89,7 @@ def remover_rodape(uploaded_file):
             page_index = indices_aplicar[0]
             original_page = reader.pages[page_index]
             preview_writer = PdfWriter()
-
+            can.save()
             packet = io.BytesIO()
             can = canvas.Canvas(packet, pagesize=letter)
             can.setFillColorRGB(*cor_rgb)
