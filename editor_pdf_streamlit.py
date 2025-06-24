@@ -222,6 +222,40 @@ def extrair_texto(uploaded_file):
             texto = "\n".join(page.extract_text() or '' for page in pdf.pages)
         st.text_area("Texto extraído:", value=texto, height=400)
 
+# Remover numeração baseada em texto
+
+def remover_numeracao_baseado_texto(uploaded_file):
+    if uploaded_file:
+        reader = PdfReader(uploaded_file)
+        writer = PdfWriter()
+        mascaras = []
+
+        with pdfplumber.open(uploaded_file) as pdf:
+            for page_num, page in enumerate(pdf.pages):
+                words = page.extract_words()
+                for w in words:
+                    if w['text'].isdigit() and float(w['bottom']) < 50:
+                        mascaras.append((page_num, float(w['x0']), float(w['top']), float(w['x1']), float(w['bottom'])))
+
+        if mascaras:
+            st.success(f"{len(mascaras)} marca(s) de número identificada(s) para remoção.")
+
+        for i, page in enumerate(reader.pages):
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=letter)
+            for m in mascaras:
+                if m[0] == i:
+                    x0, y_top, x1, y_bot = m[1], m[2], m[3], m[4]
+                    can.setFillColorRGB(1, 1, 1)
+                    can.rect(x0, y_bot, x1 - x0, y_top - y_bot, fill=1)
+            can.save()
+            packet.seek(0)
+            overlay = PdfReader(packet)
+            page.merge_page(overlay.pages[0])
+            writer.add_page(page)
+
+        download_button(writer, "removido_texto.pdf")
+
 # Editar metadados
 
 def editar_metadados(uploaded_file):
@@ -276,3 +310,5 @@ elif menu == "Adicionar numeração":
     adicionar_numeracao(uploaded_file)
 elif menu == "Remover numeração":
     remover_rodape(uploaded_file)
+elif menu == "Remover baseado em texto":
+    remover_numeracao_baseado_texto(uploaded_file)
