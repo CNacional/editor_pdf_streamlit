@@ -23,7 +23,8 @@ menu = st.sidebar.radio("Escolha uma função:", [
     "Editar metadados",
     "Converter para Word",
     "Adicionar numeração",
-    "Remover numeração"
+    "Remover numeração",
+    "Remover baseado em texto"
 ])
 
 uploaded_file = st.file_uploader("📎 Envie um arquivo PDF", type="pdf")
