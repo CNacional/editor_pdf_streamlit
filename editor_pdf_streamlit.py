@@ -93,7 +93,7 @@ def remover_rodape(uploaded_file):
             packet = io.BytesIO()
             can = canvas.Canvas(packet, pagesize=letter)
             can.setFillColorRGB(*cor_rgb)
-            can.rect(x=0, y=y_base, width=largura, height=altura, fill=1)
+            can.rect(x=0, y=y_base, width=largura, height=altura, fill=1, stroke=0)
             can.save()
             packet.seek(0)
             overlay = PdfReader(packet)
