@@ -9,7 +9,7 @@ from pdf2docx import Converter
 import os
 
 st.set_page_config(page_title="Editor de PDF", layout="wide")
-st.title("🛠️ Editor de PDF Online")
+st.title("🛠️ Editor de PDF Online - Criado por Tiago Henrique")
 
 
 menu = st.sidebar.selectbox("Escolha uma função:", [
@@ -98,7 +98,7 @@ def remover_rodape(uploaded_file):
                     page.merge_page(overlay.pages[0])
                 writer.add_page(page)
 
-            download_button(writer, "sem_numeracao.pdf")
+        download_button(writer, "sem_numeracao.pdf")
 
 
 # Extrair páginas específicas
