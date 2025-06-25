@@ -98,7 +98,7 @@ def remover_rodape(uploaded_file):
                     page.merge_page(overlay.pages[0])
                 writer.add_page(page)
 
-            download_button(writer, "sem_numeracao.pdf")
+        download_button(writer, "sem_numeracao.pdf")
 
 
 # Extrair páginas específicas
