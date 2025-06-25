@@ -10,7 +10,7 @@ import os
 
 st.set_page_config(page_title="Editor de PDF", layout="wide")
 st.title("🛠️ Editor de PDF Online")
-st.subheader(f"Função selecionada: {menu}")
+
 
 menu = st.sidebar.selectbox("Escolha uma função:", [
     "Visualizar PDF",
@@ -27,6 +27,8 @@ menu = st.sidebar.selectbox("Escolha uma função:", [
     "Remover numeração",
     "Remover baseado em texto"
 ])
+
+st.subheader(f"Função selecionada: {menu}")
 
 uploaded_file = st.file_uploader("📎 Envie um arquivo PDF", type="pdf")
 
