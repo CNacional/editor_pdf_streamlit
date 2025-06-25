@@ -11,7 +11,7 @@ import os
 st.set_page_config(page_title="Editor de PDF", layout="wide")
 st.title("🛠️ Editor de PDF Online")
 
-menu = st.sidebar.radio("Escolha uma função:", [
+menu_options = [
     "Visualizar PDF",
     "Extrair páginas",
     "Mesclar PDFs",
@@ -25,7 +25,16 @@ menu = st.sidebar.radio("Escolha uma função:", [
     "Adicionar numeração",
     "Remover numeração",
     "Remover baseado em texto"
-])
+]
+
+st.sidebar.markdown("## Escolha uma função:")
+menu = None
+for option in menu_options:
+    if st.sidebar.button(option):
+        menu = option
+
+if menu is None:
+    menu = menu_options[0]
 
 uploaded_file = st.file_uploader("📎 Envie um arquivo PDF", type="pdf")
 
