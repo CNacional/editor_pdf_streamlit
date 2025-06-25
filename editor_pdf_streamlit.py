@@ -11,7 +11,7 @@ import os
 st.set_page_config(page_title="Editor de PDF", layout="wide")
 st.title("🛠️ Editor de PDF Online")
 
-menu_options = [
+menu = st.sidebar.radio("Escolha uma função:", [
     "Visualizar PDF",
     "Extrair páginas",
     "Mesclar PDFs",
@@ -25,19 +25,7 @@ menu_options = [
     "Adicionar numeração",
     "Remover numeração",
     "Remover baseado em texto"
-]
-
-st.sidebar.markdown("## Escolha uma função:")
-menu = None
-for option in menu_options:
-    if st.sidebar.button(option):
-        menu = option
-
-if menu is None:
-    menu = menu_options[0]
-    
-st.subheader(f"Você selecionou:\n")
-st.subheader(f"{menu}\n")
+])
 
 uploaded_file = st.file_uploader("📎 Envie um arquivo PDF", type="pdf")
 
@@ -92,21 +80,49 @@ def remover_rodape(uploaded_file):
         if paginas:
             indices_aplicar = [int(p.strip()) - 1 for p in paginas.split(',') if p.strip().isdigit() and 0 <= int(p.strip()) - 1 < total_paginas]
 
+        st.subheader("Pré-visualização (primeira página aplicável):")
+        if indices_aplicar:
+            page_index = indices_aplicar[0]
+            original_page = reader.pages[page_index]
+            preview_writer = PdfWriter()
 
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=letter)
+            can.setFillColorRGB(*cor_rgb)
+            can.rect(x=0, y=y_base, width=largura, height=altura, fill=1, stroke=0)
+            can.save()
+            packet.seek(0)
+            overlay = PdfReader(packet)
+            preview_page = original_page
+            preview_page.merge_page(overlay.pages[0])
+            preview_writer.add_page(preview_page)
+
+            preview_output = io.BytesIO()
+            preview_writer.write(preview_output)
+            preview_output.seek(0)
+            b64_preview = base64.b64encode(preview_output.read()).decode('utf-8')
+            pdf_display = f"""
+            <iframe src="data:application/pdf;base64,{b64_preview}" width="700" height="1000" type="application/pdf"></iframe>
+            """
+            st.components.v1.html(pdf_display, height=1000)
 
         if st.button("Aplicar remoção de numeração"):
             for i, page in enumerate(reader.pages):
-                if i in indices_aplicar:
-                    packet = io.BytesIO()
-                    can = canvas.Canvas(packet, pagesize=letter)
-                    can.setFillColorRGB(*cor_rgb)
-                    can.setLineWidth(0)
-                    can.rect(x=0, y=y_base, width=largura, height=altura, fill=1, stroke=0)
-                    can.save()
-                    packet.seek(0)
-                    overlay = PdfReader(packet)
-                    page.merge_page(overlay.pages[0])
-                writer.add_page(page)
+            if i in indices_aplicar:
+                packet = io.BytesIO()
+                can = canvas.Canvas(packet, pagesize=letter)
+                can.setFillColorRGB(*cor_rgb)
+                can.setLineWidth(0)
+                can.rect(x=0, y=y_base, width=largura, height=altura, fill=1, stroke=0)
+                can.save()
+                packet.seek(0)
+                overlay = PdfReader(packet)
+              page.merge_page(overlay.pages[0])
+        writer.add_page(page)
+
+    download_button(writer, "sem_numeracao.pdf")
+
+                    
 
             download_button(writer, "sem_numeracao.pdf")
 
