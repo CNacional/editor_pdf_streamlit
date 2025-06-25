@@ -68,7 +68,7 @@ def adicionar_numeracao(uploaded_file):
 def remover_rodape(uploaded_file):
     largura = st.number_input("Largura da faixa branca (px)", min_value=100, max_value=800, value=600)
     altura = st.number_input("Altura da faixa branca (px)", min_value=10, max_value=200, value=40)
-    x_pos = st.number_input("Posição horizontal da máscara (px)", min_value=0, max_value=600, value=0)
+    x_pos = st.number_input("Posição horizontal da máscara (px)", min_value=0, max_value=600, value=490)
     y_base = st.number_input("Distância do rodapé até o topo da faixa (px)", min_value=0, max_value=300, value=0)
     cor = st.color_picker("Cor da faixa branca", value="#FFFFFF")
     paginas = st.text_input("Páginas a aplicar (ex: 1,3,5 ou deixe vazio para todas)")
@@ -100,9 +100,6 @@ def remover_rodape(uploaded_file):
 
             download_button(writer, "sem_numeracao.pdf")
 
-                    
-
-            download_button(writer, "sem_numeracao.pdf")
 
 # Extrair páginas específicas
 def extrair_paginas(uploaded_file):
