@@ -10,6 +10,7 @@ import os
 
 st.set_page_config(page_title="Editor de PDF", layout="wide")
 st.title("🛠️ Editor de PDF Online")
+st.subheader(f"Função selecionada: {menu}")
 
 menu_options = [
     "Visualizar PDF",
