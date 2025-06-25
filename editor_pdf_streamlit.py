@@ -10,8 +10,9 @@ import os
 
 st.set_page_config(page_title="Editor de PDF", layout="wide")
 st.title("🛠️ Editor de PDF Online")
+st.subheader(f"Função selecionada: {menu}")
 
-menu = st.sidebar.radio("Escolha uma função:", [
+menu = st.sidebar.selectbox("Escolha uma função:", [
     "Visualizar PDF",
     "Extrair páginas",
     "Mesclar PDFs",
@@ -65,6 +66,7 @@ def adicionar_numeracao(uploaded_file):
 def remover_rodape(uploaded_file):
     largura = st.number_input("Largura da faixa branca (px)", min_value=100, max_value=800, value=600)
     altura = st.number_input("Altura da faixa branca (px)", min_value=10, max_value=200, value=40)
+    x_pos = st.number_input("Posição horizontal da máscara (px)", min_value=0, max_value=600, value=0)
     y_base = st.number_input("Distância do rodapé até o topo da faixa (px)", min_value=0, max_value=300, value=0)
     cor = st.color_picker("Cor da faixa branca", value="#FFFFFF")
     paginas = st.text_input("Páginas a aplicar (ex: 1,3,5 ou deixe vazio para todas)")
@@ -80,24 +82,25 @@ def remover_rodape(uploaded_file):
         if paginas:
             indices_aplicar = [int(p.strip()) - 1 for p in paginas.split(',') if p.strip().isdigit() and 0 <= int(p.strip()) - 1 < total_paginas]
 
+        if st.button("Aplicar remoção de numeração"):
+            for i, page in enumerate(reader.pages):
+                if i in indices_aplicar:
+                    packet = io.BytesIO()
+                    can = canvas.Canvas(packet, pagesize=letter)
+                    can.setFillColorRGB(*cor_rgb)
+                    can.setLineWidth(0)
+                    can.rect(x=x_pos, y=y_base, width=largura, height=altura, fill=1, stroke=0)
+                    can.save()
+                    packet.seek(0)
+                    overlay = PdfReader(packet)
+                    page.merge_page(overlay.pages[0])
+                writer.add_page(page)
 
+            download_button(writer, "sem_numeracao.pdf")
 
-    if st.button("Aplicar remoção de numeração"):
-        for i, page in enumerate(reader.pages):
-            if i in indices_aplicar:
-                packet = io.BytesIO()
-                can = canvas.Canvas(packet, pagesize=letter)
-                can.setFillColorRGB(*cor_rgb)
-                can.setLineWidth(0)
-                can.rect(x=0, y=y_base, width=largura, height=altura, fill=1, stroke=0)
-                can.save()
-                packet.seek(0)
-                overlay = PdfReader(packet)
-                page.merge_page(overlay.pages[0])
-            writer.add_page(page)
-    
-        download_button(writer, "sem_numeracao.pdf")
-        
+                    
+
+            download_button(writer, "sem_numeracao.pdf")
 
 # Extrair páginas específicas
 def extrair_paginas(uploaded_file):
@@ -248,7 +251,11 @@ def remover_numeracao_baseado_texto(uploaded_file):
                         can.setFillColorRGB(1, 1, 1)
                         can.setLineWidth(0)
                         can.rect(x0, y_bot, x1 - x0, y_top - y_bot, fill=1, stroke=0)
-                
+                can.save()
+                packet.seek(0)
+                overlay = PdfReader(packet)
+                page.merge_page(overlay.pages[0])
+                writer.add_page(page)
 
             download_button(writer, "removido_texto.pdf")
 
