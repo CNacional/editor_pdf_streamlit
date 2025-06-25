@@ -58,11 +58,7 @@ def adicionar_numeracao(uploaded_file):
             numero = f"{i + 1}"
             can.setFont("Helvetica", 10)
             can.drawCentredString(300, 15, numero)
-            can.save()
-            packet.seek(0)
-            overlay = PdfReader(packet)
-            page.merge_page(overlay.pages[0])
-            writer.add_page(page)
+            
         download_button(writer, "com_numeracao.pdf")
 
 # Remove visualmente numeração cortando o rodapé
@@ -89,7 +85,7 @@ def remover_rodape(uploaded_file):
             page_index = indices_aplicar[0]
             original_page = reader.pages[page_index]
             preview_writer = PdfWriter()
-            can.save()
+
             packet = io.BytesIO()
             can = canvas.Canvas(packet, pagesize=letter)
             can.setFillColorRGB(*cor_rgb)
@@ -116,21 +112,10 @@ def remover_rodape(uploaded_file):
                     packet = io.BytesIO()
                     can = canvas.Canvas(packet, pagesize=letter)
                     can.setFillColorRGB(*cor_rgb)
-                    can.rect(x=0, y=y_base, width=largura, height=altura, fill=1, stroke=0)
+                    can.rect(x=0, y=y_base, width=largura, height=altura, fill=1)
                     
-                    packet.seek(0)
-                    overlay = PdfReader(packet)
-                    page.merge_page(overlay.pages[0])
-                writer.add_page(page)
 
             download_button(writer, "sem_numeracao.pdf")
-            can.save()
-            packet.seek(0)
-            overlay = PdfReader(packet)
-            page.merge_page(overlay.pages[0])
-            writer.add_page(page)
-
-        download_button(writer, "sem_numeracao.pdf")
 
 # Extrair páginas específicas
 def extrair_paginas(uploaded_file):
@@ -191,11 +176,7 @@ def adicionar_marcadagua(uploaded_file):
             can.setFont("Helvetica", 20)
             can.setFillGray(0.5, 0.5)
             can.drawString(100, 500, texto)
-            can.save()
-            packet.seek(0)
-            overlay = PdfReader(packet)
-            page.merge_page(overlay.pages[0])
-            writer.add_page(page)
+            
         download_button(writer, "com_marcadagua.pdf")
 
 # Inserir páginas de outro PDF
@@ -226,6 +207,10 @@ def extrair_texto(uploaded_file):
 # Remover numeração baseada em texto
 
 def remover_numeracao_baseado_texto(uploaded_file):
+    limite_rodape = st.number_input("Limite do rodapé (px)", min_value=10, max_value=300, value=50)
+    termos_comuns = st.text_input("Palavras a ignorar (separadas por vírgula)", value="pág,página")
+    termos_lista = [t.strip().lower() for t in termos_comuns.split(',') if t.strip()]
+
     if uploaded_file:
         reader = PdfReader(uploaded_file)
         writer = PdfWriter()
@@ -235,27 +220,55 @@ def remover_numeracao_baseado_texto(uploaded_file):
             for page_num, page in enumerate(pdf.pages):
                 words = page.extract_words()
                 for w in words:
-                    if w['text'].isdigit() and float(w['bottom']) < 50:
-                        mascaras.append((page_num, float(w['x0']), float(w['top']), float(w['x1']), float(w['bottom'])))
+                    txt = w['text'].lower()
+                    if any(p in txt for p in termos_lista) or txt.isdigit():
+                        if float(w['bottom']) < limite_rodape:
+                            mascaras.append((page_num, float(w['x0']), float(w['top']), float(w['x1']), float(w['bottom'])))
 
         if mascaras:
             st.success(f"{len(mascaras)} marca(s) de número identificada(s) para remoção.")
 
-        for i, page in enumerate(reader.pages):
+            # Pré-visualização da primeira página com remoção
+            primeira_pagina = mascaras[0][0] if mascaras else 0
+            page = reader.pages[primeira_pagina]
             packet = io.BytesIO()
             can = canvas.Canvas(packet, pagesize=letter)
             for m in mascaras:
-                if m[0] == i:
+                if m[0] == primeira_pagina:
                     x0, y_top, x1, y_bot = m[1], m[2], m[3], m[4]
                     can.setFillColorRGB(1, 1, 1)
-                    can.rect(x0, y_bot, x1 - x0, y_top - y_bot, fill=1)
+                    can.setLineWidth(0)
+                    can.rect(x0, y_bot, x1 - x0, y_top - y_bot, fill=1, stroke=0)
             can.save()
             packet.seek(0)
             overlay = PdfReader(packet)
-            page.merge_page(overlay.pages[0])
-            writer.add_page(page)
+            preview = page
+            preview.merge_page(overlay.pages[0])
 
-        download_button(writer, "removido_texto.pdf")
+            preview_writer = PdfWriter()
+            preview_writer.add_page(preview)
+            preview_output = io.BytesIO()
+            preview_writer.write(preview_output)
+            preview_output.seek(0)
+            b64_preview = base64.b64encode(preview_output.read()).decode('utf-8')
+            st.subheader("Pré-visualização da primeira página com remoção:")
+            st.components.v1.html(f"""
+                <iframe src="data:application/pdf;base64,{b64_preview}" width="700" height="1000" type="application/pdf"></iframe>
+            """, height=1000)
+
+        if st.button("Aplicar remoção de numeração detectada"):
+            for i, page in enumerate(reader.pages):
+                packet = io.BytesIO()
+                can = canvas.Canvas(packet, pagesize=letter)
+                for m in mascaras:
+                    if m[0] == i:
+                        x0, y_top, x1, y_bot = m[1], m[2], m[3], m[4]
+                        can.setFillColorRGB(1, 1, 1)
+                        can.setLineWidth(0)
+                        can.rect(x0, y_bot, x1 - x0, y_top - y_bot, fill=1, stroke=0)
+                
+
+            download_button(writer, "removido_texto.pdf")
 
 # Editar metadados
 
