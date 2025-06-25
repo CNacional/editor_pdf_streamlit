@@ -37,7 +37,7 @@ if menu is None:
     menu = menu_options[0]
     
 st.subheader(f"Você selecionou:\n")
-st.subheader(f"{menu}")
+st.subheader(f"{menu}"\n)
 
 uploaded_file = st.file_uploader("📎 Envie um arquivo PDF", type="pdf")
 
